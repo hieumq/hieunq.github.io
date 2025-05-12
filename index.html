@@ -1,0 +1,285 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reyee Chat Bot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #0d1117 0%, #1a1f2b 100%);
+            color: #e6edf3;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #chat-container {
+            width: 100%;
+            max-width: 800px;
+            background: rgba(22, 27, 34, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #chat-log {
+            height: 600px;
+            overflow-y: auto;
+            padding: 15px;
+            background: rgba(13, 17, 23, 0.7);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: #4a5568 #1a202c;
+        }
+        #chat-log::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-log::-webkit-scrollbar-track {
+            background: #1a202c;
+            border-radius: 4px;
+        }
+        #chat-log::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        .message {
+            margin: 12px 0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            max-width: 70%;
+            font-size: 15px;
+            line-height: 1.5;
+            transition: all 0.2s ease;
+        }
+        .user-message {
+            background: #2d3748;
+            color: #e6edf3;
+            margin-left: auto;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .bot-message {
+            background: linear-gradient(90deg, #1db954 0%, #17a34a 100%);
+            color: #ffffff;
+            margin-right: auto;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        #input-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 12px 15px;
+            background: rgba(45, 55, 72, 0.8);
+            color: #e6edf3;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        #user-input:focus {
+            border-color: #1db954;
+        }
+        #send-button {
+            padding: 12px 20px;
+            background: linear-gradient(90deg, #1db954 0%, #17a34a 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease, background 0.3s ease;
+        }
+        #send-button:hover {
+            transform: scale(1.05);
+            background: linear-gradient(90deg, #1ed760 0%, #19c754 100%);
+        }
+        #send-button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-log"></div>
+        <div id="input-area">
+            <input type="text" id="user-input" placeholder="Nhập câu hỏi của bạn...">
+            <button id="send-button">➤</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            { question: "Which of the following sayings is WRONG about Reyee switches", options: ["A. RG-ES0 Series belongs to Reyee switches", "B. RG-NBS51/52 support Static Routing", "C. RG-ES1 Series is managed switch", "D. RG-ES200 Series is Cloud managed"], answer: "C" },
+            { question: "Which of the following competitors' models is NOT mapping to RG-NBS3100-8GT2SFP-P", options: ["A. Aruba 1830 JL811A", "B. TP-Link TL-SG2210MP", "C. Cisco CBS350-8FP-E-2G", "D. D-Link DGS-1100-08PV2"], answer: "D" },
+            { question: "Which of the following sayings is CORRECT about RG-NBS3200-48GT4XS-P", options: ["A. With 48 FE Ports", "B. With 4 10G RJ45 Ports", "C. Supports PoE", "D. With 4 SFP ports"], answer: "C" },
+            { question: "Which of the following sayings are WRONG about RG-EG209GS", options: ["A. Supports up to 200 con-current users", "B. 9 GE Ports", "C. down to 4 WAN Ports", "D. SFP Ports available"], answer: "C" },
+            { question: "Which of the following competitors' models are NOT mapping to RG-ES206GC-P", options: ["A. Hikvision DS-2E0106P-E/M", "B. TP-Link TL-SG105PE", "C. D-Link DGS-1100-05PDV2", "D. Netgear GS105PE"], answer: "A" },
+            { question: "Which of the following sayings are WRONG about key SPECs of RG-NBS3200-48GT4XS-P", options: ["A. 52 Ports with 4 SFP+ Ports", "B. 370W of PoE power budget. All ports support PoE", "C. Supports CLI configuration", "D. Supports ACL and IGMP Snooping"], answer: "C" },
+            { question: "Which of the following sayings is CORRECT about RG-NBS3200 series", options: ["A. L2+ switch", "B. L3 switch", "C. L2 switch", "D. Unmanage switch"], answer: "A" },
+            { question: "Which of the following values don‘t belong to RG-NBS switches", options: ["A. RG-NBS provide equal performance as enterprise switches", "B. RG-NBS5000 supports SNMP, IPv6, Stacking features", "C. RG-NBS3000 could be Cloud managed"], answer: "B" },
+            { question: "Which of the following competitors' models is mapping to RG-ES106F-LP", options: ["A. DS-3E0310P-E/M", "B. DS-3E0106P-E/M", "C. PFS3005-5ET-L", "D. TL-SF1005D"], answer: "B" },
+            { question: "Which of the following sayings is NOT the difference between RG-RAP2260(G) and RG-RAP2260(E)", options: ["A. RG-RAP2260(E) is AX3200 and RG-RAP2260(G) is AX1800", "B. RG-RAP2260(E) has 3-Year warranty but 2260(G) has 1 year", "C. RG-RAP2260(E) has 2.5GE port and RG-RAP2260(G) doesn't", "D. RG-RAP2260(E) supports more concurrent user than RG-RAP2260(G)"], answer: "B" },
+            { question: "If customer is expecting a UFO shape, Wi-Fi 6 outdoor AP with SFP port, which model to select?", options: ["A. RG-RAP6260(H)", "B. RG-RAP6262", "C. RG-RAP6262(G)", "D. RG-RAP6260(G)"], answer: "B" },
+            { question: "Which of the following is not a main competing product of RG-RAP?", options: ["A. TP-Link", "B. Ubiquiti", "C. Ruckus", "D. Huawei eKit"], answer: "C" },
+            { question: "Which of the following description of RG-RAP2260 (E) and its competing product U6-LR is INCORRECT", options: ["A. Wi-Fi speed same to U6-LR", "B. Compared to U6-LR, it has one more 2.5G port", "C. Has 3-year warranty, U6-LR only 1 year quality assurance", "D. Free cloud management, U6-LR needs to purchase a cloud controller separately"], answer: "A" },
+            { question: "Which of thefollowing statement about RG-RAP72Pro is CORRECT", options: ["A. Mapping to U7 Pro", "B. 1 2.5G port", "C. BE3600", "D. 6x6 MIMO"], answer: "B" },
+            { question: "Which of the following statement about RG-RAP62 is CORRECT", options: ["A. 1 2.5G port", "B. Anti theft design", "C. Square shape", "D. 5x5 MIMO"], answer: "B" },
+            { question: "Which of the following statement about Wi-Fi 7 is CORRECT", options: ["A. must have 6G to be WiFi 7.", "B. MLO can increase speed by 20%.", "C. MRU is a function that ensures high concurrency in WiFi7", "D. WiFi 7 does not support 4K-QAM."], answer: "B" },
+            { question: "Which of the following statement about RG-RAP2260 is CORRECT", options: ["A. Round shaped", "B. There are two 2.5G ports", "C. AX5400", "D. Wi-Fi 7 AP"], answer: "B" },
+            { question: "Which of the following statement about RG-RAP2260(H) is CORRECT", options: ["A. AX3200", "B. There is a 2.5G port and a 1G port", "C. Recommended concurrent user 130", "D. Theft proof mounting kit"], answer: "C" },
+            { question: "Which of the statement about EG105G V3 is CORRECT", options: ["A. MAX 3 GE WAN", "B. Max IPSec Tunnels 8", "C. 150 Concurrent", "D. Throughput 900 Mbps"], answer: "B" },
+            { question: "Which of the following sayings is WRONG about RG-EG310GH-P-E", options: ["A. Support up to 300 con-current user", "B. With 10x GE Ports", "C. LAN Ports support PoE", "D. With built-in 3000Mbps Wi-Fi"], answer: "D" },
+            { question: "Which of the following sayings is core value of RG-EG Router", options: ["A. Models could support from 100 to 10000 concurrent users", "B. Has features like IPS, IDS and Firewall", "C. Easy to configure", "D. Buy licence to enable features"], answer: "C" },
+            { question: "Which of the following vendor is major competitor for RG-EG Router", options: ["A. H3C", "B. Cisco", "C. Mikrotik", "D. Aruba"], answer: "C" },
+            { question: "Which of the following sayings is WRONG about RG-EG105GW-X", options: ["A. Built-in Wi-Fi 6", "B. One click Reyee Mesh", "C. Internal attannas", "D. Supports VPN, Multi-WAN"], answer: "C" },
+            { question: "Which of the following kind of VPN EG can NOT support", options: ["A. OpenVPN", "B. SSL VPN", "C. IPSec VPN", "D. L2TP"], answer: "B" },
+            { question: "Which of the following sayings is WRONG about Smart traffic control", options: ["A. Control the total outbound bandwidtH.", "B. Ensure that high - priority application traffic is preferentially schedule", "C. Ensure fair scheduling of each user's traffi", "D. Users compete for bandwidth, and those with larger traffic are allocated bandwidth preferentially."], answer: "D" },
+            { question: "Which of the following models have throughput ≤ 1G on condition of (NAT + Flow Audit)", options: ["A. EG210G-E", "B. EG210G-P V3", "C. EG310GH-E", "D. EG310GH-P-E"], answer: "A" },
+            { question: "How many ports does RG-EW1200GPRO have?", options: ["A. 3 Ports：1WAN+2LAN", "B. 4 Ports：1WAN+3LAN", "C. 5 Ports：1WAN+4LAN", "D. 5 Ports：2WAN+3LAN"], answer: "B" },
+            { question: "How many FEM chipsets does RG-EW1200GPRO have?", options: ["A. 0", "B. 2", "C. 4", "D. 6"], answer: "C" },
+            { question: "What is the max throughput of RG-EW1200GPRO?", options: ["A. 300M", "B. 1167M", "C. 1267M", "D. 1774M"], answer: "C" },
+            { question: "How many FEM chipsets does RG-EW1300G have?", options: ["A. 0", "B. 2", "C. 4", "D. 6"], answer: "A" },
+            { question: "What does it mean when the system indicator of RG-EW1200 is blinking quickly?", options: ["A. Device offline", "B. Device running", "C. Device reseting", "D. Device Reyee Meshing"], answer: "C" },
+            { question: "What does it mean when you press the TOP button of RG-EW300R?", options: ["A. Reyee Mesh", "B. Reset", "C. WPS", "D. LED ON/OFF"], answer: "C" },
+            { question: "How many devices are supported by WIRELESS Reyee Mesh at most (including main router)?", options: ["A. 3", "B. 4", "C. 5", "D. 6"], answer: "D" },
+            { question: "Which model support Gaming functions?", options: ["A. All models", "B. RG-EW1200G PRO", "C. RG-EW3200GXPRO", "D. RG-EW3000GX PRO"], answer: "D" },
+            { question: "How many devices are supported by Reyee Mesh by WIRED at most (including main router)?", options: ["A. 5", "B. 6", "C. 10", "D. Unlimited"], answer: "D" },
+            { question: "Which of the following sayings are CORRECT about RG-EG209GS", options: ["A. Supports up to 200 con-current users", "B. 9 GE Ports", "C. Up to 4 WAN Ports", "D. SFP Ports available"], answer: "ABCD" },
+            { question: "Which of the following scenarios are fit for multi-WAN feature of EG?", options: ["A. Multi-ISP bandwidth aggragation", "B. Link backup between ISPs", "C. Control mobilephone applications", "D. Defend DDoS attacks"], answer: "AB" },
+            { question: "Which of the following competitors' models are mapping to RG-EG305GH-P-E", options: ["A. Mikrotik RB301UiAS-RM", "B. Draytek Vigor 2927", "C. Mikrotik hAPac2", "D. Mikrotik hAPax2"], answer: "AB" },
+            { question: "Which of the following sayings are selling points of Application Control of EG", options: ["A. App library auto-updated by Ruijie Cloud", "B. Configured by Ruijie Cloud app", "C. Limit, block or prioritize application", "D. Must buy license to get Application Control feature"], answer: "ABC" },
+            { question: "Which of the following sayings are CORRECT about RG-EG105GW(T)", options: ["A. Supports up to 4 WAN Ports", "B. Built-in Wi-Fi 5", "C. One-click Mesh", "D. Supports VPN"], answer: "ABCD" },
+            { question: "Which of the following vendors are major competitors of RG-ES switches", options: ["A. TP-Link", "B. D-Link", "C. Hikvision (Switch)", "D. Netgear"], answer: "ABCD" },
+            { question: "Which of the following vendors are major competitors of RG-NBS switches", options: ["A. Aruba Instant On", "B. TP-Link", "C. Cisco", "D. Juniper EX"], answer: "ABC" },
+            { question: "Which of the following values belong to RG-ES0/1 switches", options: ["A. Real 8-PIN", "B. Could be shown in topo of Ruijie Cloud", "C. Better quality", "D. Full coverage on switch models"], answer: "ABCD" },
+            { question: "Which of the following values belong to RG-ES200 switches", options: ["A. Cloud-managed", "B. Rich CCTV features", "C. 200+ Meters PoE", "D. Loop Prevention"], answer: "ABCD" },
+            { question: "Which of the following classifications of Reyee switches are CORRECT", options: ["A. RG-ES200-Cloud Managed", "B. RG-ES0/1- Unmanaged switch", "C. RG-NBS3100 L2 Managed switch", "D. RG-NBS3200- L2+ Managed Switch"], answer: "ABCD" },
+            { question: "Which of the following selling points belong to RG-RAP6202(G)", options: ["A. Stronger signal at all directions", "B. Better water proof design", "C. Better performance", "D. 1 More LAN port"], answer: "ABCD" },
+            { question: "Which of the following selling points belong to RG-RAP6260(G)", options: ["A. Wi-Fi 6 brings 2x max users", "B. Any-direction mounting", "C. V0 anti flame", "D. Larger signal coverage with 26dBm tx power"], answer: "ABCD" },
+            { question: "What RG-RAP models you should offer if customer is asking for indoor and Wi-Fi 6", options: ["A. RG-RAP2260(E)", "B. RG-RAP2266", "C. RG-RAP2260(G)", "D. RG-RAP2200(E)"], answer: "ABC" },
+            { question: "The following statement about RG-RAP is INCORRECT", options: ["A. Can be managed by EWeb and Ruijie Cloud, etc", "B. Standalone Portal configuration can be without Reyee EG", "C. Both support AI roaming", "D. Both support AP Mesh management"], answer: "CD" },
+            { question: "The following statements about RG-RAP6260 (G) and RG-RAP6262 (G) are CORRECT", options: ["A. Both AX1800 models", "B. Both support local DC power supply", "C. Number and type of ports are the same", "D. Both with omnidirectional antenna"], answer: "AD" },
+            { question: "What are the differences between RG-EW300N and RG-EW300PRO?", options: ["A. Antennas", "B. Cloud management", "C. Reyee Mesh", "D. FEM", "E. Warranty"], answer: "AD" },
+            { question: "What scenarios are Home Wi-Fi commonly used in?", options: ["A. Apartment", "B. Villa", "C. Large enterprise", "D. Small office", "E. Café", "F. Budget hotel", "G. Large Campus"], answer: "ABDEF" },
+            { question: "What are the key values of Reyee Home Wi-Fi?", options: ["A. Strong signal", "B. High security", "C. One-click Reyee Mesh", "D. Longer warranty", "E. Free Cloud-management"], answer: "ACDE" },
+            { question: "What are the key values of Reyee Mesh?", options: ["A. Zero pre-configuration", "B. Seamless roaming", "C. One-click Reyee Mesh", "D. Reyee Mesh with other brands", "E. Reyee Mesh with Reyee AP"], answer: "ABC" },
+            { question: "Which models don’t have FEM?", options: ["A. RG-EW300N", "B. RG-EW300PRO", "C. RG-EW1200", "D. RG-EW1300G", "E. RG-EW1200GPRO", "F. RG-EW1800GXPRO", "G. RG-EW3000GXPRO"], answer: "ACD" },
+            { question: "What are the key advantages of RG-EW7200BE PRO?", options: ["A. 9 High-gain antennas and 9 FEMs", "B. WAN aggregation", "C. Load balancing", "D. Reyee Mesh"], answer: "ABCD" },
+            { question: "What are the key values of RG-EW300T?", options: ["A. 4 Antennas", "B. 2FEM", "C. Free Cloud-management", "D. Three years warranty"], answer: "ACD" }
+        ];
+
+        function getWords(text) {
+            return text.toLowerCase().split(/\s+/).filter(word => word.length > 0);
+        }
+
+        function jaccardSimilarity(str1, str2) {
+            const words1 = new Set(getWords(str1));
+            const words2 = new Set(getWords(str2));
+            const intersection = new Set([...words1].filter(x => words2.has(x)));
+            const union = new Set([...words1, ...words2]);
+            return intersection.size / union.size;
+        }
+
+        function findBestMatch(userInput, questions) {
+            let bestMatch = null;
+            let highestSimilarity = 0;
+            questions.forEach(q => {
+                const similarity = jaccardSimilarity(userInput, q.question);
+                if (similarity > highestSimilarity) {
+                    highestSimilarity = similarity;
+                    bestMatch = q;
+                }
+            });
+            return bestMatch;
+        }
+
+        function addMessageToLog(sender, message) {
+            const chatLog = document.getElementById('chat-log');
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender + '-message');
+            messageDiv.innerHTML = message;
+            chatLog.appendChild(messageDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function sendMessage() {
+            const userInput = document.getElementById('user-input').value.trim();
+            if (userInput === '') return;
+            addMessageToLog('user', userInput);
+            const bestMatch = findBestMatch(userInput, questions);
+            if (bestMatch) {
+                const { question, options, answer } = bestMatch;
+                const optionsText = options.join('<br>');
+                const response = `
+                    Câu hỏi: ${question}<br>
+                    Các đáp án:<br>
+                    ${optionsText}<br>
+                    Đáp án đúng: ${answer.split('').join(', ')}
+                `;
+                addMessageToLog('bot', response);
+            } else {
+                addMessageToLog('bot', "Tôi không biết câu trả lời cho câu hỏi đó.");
+            }
+            document.getElementById('user-input').value = '';
+        }
+
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('user-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
